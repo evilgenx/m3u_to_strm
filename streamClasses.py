@@ -1,269 +1,366 @@
+# streamClasses.py
+import asyncio
 import asyncio
 import logger
 import os
+import requests
 import re
 import tools
-class Movie(object):
-  '''A class used to construct the Movie filename.
+from typing import Optional, List, Dict
+from PyQt6.QtCore import QObject, pyqtSignal
 
-  :param title: The Title of the Movie (required)
-  :type title: str.
-  :param url: The url to the location of the stream (required)
-  :type url: str.
-  :param year: The Year the movie was made (optional)
-  :type year: str.
-  :param resolution: The resolution of the stream (optional)
-  :type resolution: str.
-  '''
-  def __init__(self, title, url, year=None, resolution=None, language=None):
-    self.title = title.strip()
-    self.url = url
-    self.year = year
-    self.resolution = resolution
-    self.language = language
 
-  def getFilename(self):
-    '''Getter to get the filename for the stream file
-    
-    :returns: the fully constructed filename with type directory ea. "movies/The Longest Yard - 720p.strm"
-    :rtype: str
-    '''
-    filestring = [self.title.replace(':','-').replace('*','_').replace('/','_').replace('?','')]
-    if self.year:
-      if self.year[0] == "(":
-        filestring.append(self.year)
-      else:
-        self.year = "(" + self.year + ")"
-        filestring.append(self.year)
-    else:
-      self.year = "A"
-    if self.resolution:
-      filestring.append(self.resolution)
-    return ('movies/' + self.title.replace(':','-').replace('*','_').replace('/','_').replace('?','') + ' - ' + self.year + "/" + ' - '.join(filestring) + ".strm")
-  
-  def makeStream(self):
-    filename = self.getFilename()
-    directories = filename.split('/')
-    directories = directories[:-1]
-    typedir = directories[0]
-    moviedir = '/'.join([typedir, directories[1]])
-    if not os.path.exists(typedir):
-      os.mkdir(typedir)
-    if not os.path.exists(moviedir):
-      os.mkdir(moviedir)
-    tools.makeStrm(filename, self.url)
-  
-class TVEpisode(object):
-  '''A class used to construct the TV filename.
+class Movie:
+    """A class used to construct the Movie filename."""
 
-  :param showtitle: The Title of the TVshow (required)
-  :type showtitle: str.
-  :param url: The url to the location of the stream (required)
-  :type url: str.
-  :param seasonnumber: The season number of this episode. (optional)
-  :type seasonnumber: str
-  :param episodenumber: The episode number of this episode. (optional)
-  :type episodenumber: str
-  :param resolution: The resolution of the stream (optional)
-  :type resolution: str.
-  :param year: The Year the show was made (optional)
-  :type year: str.
-  :param episodename: The name of the episode. (optional)
-  :type episodename: str
-  :param airdate: The date the show aired, for daily or nightly shows like news (optional)
-  :type airdate: str
-  '''
-  def __init__(self, showtitle, url, seasonnumber=None, episodenumber=None ,resolution=None, language=None, episodename=None, airdate=None):
-    self.showtitle = showtitle
-    self.episodenumber = episodenumber
-    self.seasonnumber = seasonnumber
-    self.episodenumber = episodenumber
-    self.url = url
-    self.resolution = resolution
-    self.language = language
-    self.episodename = episodename
-    self.airdate = airdate
-    self.sXXeXX = "S" + str(self.seasonnumber) + "E" + str(self.episodenumber)
+    def __init__(
+        self,
+        title: str,
+        url: str,
+        year: Optional[str] = None,
+        resolution: Optional[str] = None,
+        language: Optional[str] = None,
+        output_dir: str = "streams",
+        movie_output_dir: str = "movies",
+        tvshow_output_dir: str = "tvshows",
+        file_permissions: int = 0o644,
+        dir_permissions: int = 0o755,
+    ) -> None:
+        """Initializes Movie object."""
+        self.title: str = title.strip()
+        self.url: str = url
+        self.year: Optional[str] = year
+        self.resolution: Optional[str] = resolution
+        self.language: Optional[str] = language
+        self.output_dir: str = output_dir
+        self.movie_output_dir: str = movie_output_dir
+        self.tvshow_output_dir: str = tvshow_output_dir
+        self.file_permissions: int = file_permissions
+        self.dir_permissions: int = dir_permissions
 
-  def getFilename(self):
-    '''Getter to get the filename for the stream file
-    
-    :returns: the fully constructed filename with type directory ea. "tvshows/Star Trek the Next Generation - Season 02/Star Trek the Next Generation - S02E07 - The Borgs kill Picard - 1080p.strm"
-    :rtype: str
-    '''
-    filestring = [self.showtitle.replace(':','-').replace('*','_').replace('/','_').replace('?','')]
-    if self.airdate:
-      filestring.append(self.airdate.strip())
-    else:
-      filestring.append(self.sXXeXX.strip())
-    if self.episodename:
-      filestring.append(self.episodename.strip())
-    if self.language:
-      filestring.append(self.language.strip())
-    if self.resolution:
-      filestring.append(self.resolution.strip())
-    if self.seasonnumber:
-      return ('tvshows/' + self.showtitle.strip().replace(':','-').replace('/','_').replace('*','_').replace('?','') + "/" + self.showtitle.strip().replace(':','-').replace('/','-').replace('*','_').replace('?','') + " - Season " + str(self.seasonnumber.strip()) + '/' + ' - '.join(filestring).replace(':','-').replace('*','_') + ".strm")
-    else:
-      return ('tvshows/' + self.showtitle.strip().replace(':','-').replace('/','_').replace('*','_').replace('?','') +"/" +' - '.join(filestring).replace(':','-').replace('*','_') + ".strm")
-  
-  def makeStream(self):
-    filename = self.getFilename()
-    directories = filename.split('/')
-    directories = directories[:-1]
-    typedir = directories[0]
-    showdir = '/'.join([typedir, directories[1]])
-    if not os.path.exists(typedir):
-      os.mkdir(typedir)
-    if not os.path.exists(showdir):
-      os.mkdir(showdir)
-    if len(directories) > 2:
-      seasondir = '/'.join([showdir, directories[2]])
-      if not os.path.exists(seasondir):
-        os.mkdir(seasondir)
-    tools.makeStrm(filename, self.url)
+    def getFilename(self) -> str:
+        """Getter to get the filename for the stream file.
 
-class rawStreamList(object):
-  def __init__(self, filename):
-    self.log = logger.Logger(__file__, log_level=logger.LogLevel.DEBUG)
-    self.streams = {}
-    self.filename = filename
-    self.readLines()
-    self.parseLine()
+        Returns:
+            str: Fully constructed filename for the stream file.
+        """
+        filestring: list[str] = [tools.sanitize_filename(self.title)]
+        if self.year:
+            if not self.year.startswith("("):  # Correctly format year
+                self.year: str = f"({self.year})"
+            filestring.append(self.year)
 
-  def readLines(self):
-    self.lines = [line.rstrip('\n') for line in open(self.filename, encoding="utf8")]
-    return len(self.lines)
- 
-  def parseLine(self):
-    linenumber=0
-    for j in range(len(self.lines)):
-      numlines = len(self.lines)
-      if linenumber >= numlines:
-        return 0
-      if not linenumber:
-        linenumber = 0
-      thisline = self.lines[linenumber]
-      nextline = self.lines[linenumber + 1]
-      firstline = re.compile('EXTM3U', re.IGNORECASE).search(thisline)
-      if firstline:
-        linenumber += 1
-        continue
-      if thisline[0] == "#" and nextline[0] == "#":
-        if tools.verifyURL(self.lines[linenumber+2]):
-          self.log.write_to_log(msg=' '.join(["raw stream found:", str(linenumber),'\n', ' '.join([thisline, nextline]),self.lines[linenumber+2]]))
-          self.parseStream(' '.join([thisline, nextline]),self.lines[linenumber+2])
-          linenumber += 3
-          #self.parseLine(linenumber)
+        if self.resolution:
+            filestring.append(self.resolution)
+
+        # Build the full path using os.path.join
+        return os.path.join(
+            self.output_dir,
+            self.movie_output_dir,
+            f"{tools.sanitize_filename(self.title)}{' - ' + self.year if self.year else ''}",
+            f"{' - '.join(filestring)}.strm",
+        )
+
+    def makeStream(self) -> str:
+        """Creates the stream file."""
+        filename: str = self.getFilename()
+        directory: str = os.path.dirname(filename)  # Get the directory part
+
+        tools.makeDirectory(directory)  # Create directory with permissions
+        os.chmod(directory, self.dir_permissions)  # Ensure correct permissions
+
+        tools.makeStrm(filename, self.url)
+        os.chmod(filename, self.file_permissions)  # Set file permissions
+        return filename
+
+
+class TVEpisode:
+    """A class used to construct the TV filename."""
+
+    def __init__(
+        self,
+        showtitle: str,
+        url: str,
+        seasonnumber: Optional[str] = None,
+        episodenumber: Optional[str] = None,
+        resolution: Optional[str] = None,
+        language: Optional[str] = None,
+        episodename: Optional[str] = None,
+        airdate: Optional[str] = None,
+        output_dir: str = "streams",
+        movie_output_dir: str = "movies",
+        tvshow_output_dir: str = "tvshows",
+        file_permissions: int = 0o644,
+        dir_permissions: int = 0o755,
+    ) -> None:
+        """Initializes TVEpisode object."""
+        self.showtitle: str = showtitle
+        self.episodenumber: Optional[str] = episodenumber
+        self.seasonnumber: Optional[str] = seasonnumber
+        self.episodenumber: Optional[str] = episodenumber  # Corrected typo here, was reassigned
+        self.url: str = url
+        self.resolution: Optional[str] = resolution
+        self.language: Optional[str] = language
+        self.episodename: Optional[str] = episodename
+        self.airdate: Optional[str] = airdate
+        self.sXXeXX: str = f"S{self.seasonnumber}E{self.episodenumber}"
+        self.output_dir: str = output_dir
+        self.movie_output_dir: str = movie_output_dir
+        self.tvshow_output_dir: str = tvshow_output_dir
+        self.file_permissions: int = file_permissions
+        self.dir_permissions: int = dir_permissions
+
+    def getFilename(self) -> str:
+        """Getter to get the filename for the stream file
+
+        :returns: the fully constructed filename with type directory ea. "tvshows/Star Trek the Next Generation - Season 02/Star Trek the Next Generation - S02E07 - The Borgs kill Picard - 1080p.strm"
+        :rtype: str
+        """
+        filestring: list[str] = [tools.sanitize_filename(self.showtitle)]
+        if self.airdate:
+            filestring.append(self.airdate.strip())
         else:
-          self.log.write_to_log(msg=' '.join(['Error finding raw stream in linenumber:', str(linenumber),'\n', ' '.join(self.lines[linenumber:linenumber+2])]))
-          linenumber += 1
-          #self.parseLine(linenumber)
-      elif tools.verifyURL(nextline):
-        self.log.write_to_log(msg=' '.join(["raw stream found: ", str(linenumber),'\n', '\n'.join([thisline,nextline])]))
-        self.parseStream(thisline, nextline)
-        linenumber += 2
-        #self.parseLine(linenumber)
+            filestring.append(self.sXXeXX.strip())
+        if self.episodename:
+            filestring.append(self.episodename.strip())
+        if self.language:
+            filestring.append(self.language.strip())
+        if self.resolution:
+            filestring.append(self.resolution.strip())
 
-  def parseStreamType(self, streaminfo):
-    typematch = tools.tvgTypeMatch(streaminfo)
-    ufcwwematch = tools.ufcwweMatch(streaminfo)
-    if ufcwwematch:
-      return 'live'
-    if typematch:
-      streamtype = tools.getResult(typematch)
-      if streamtype == 'tvshows':
-        return 'vodTV'
-      if streamtype == 'movies':
-        return 'vodMovie'
-      if streamtype == 'live':
-        return 'live'
-    
-    tvshowmatch = tools.sxxExxMatch(streaminfo)
-    if tvshowmatch:
-      return 'vodTV'
-    
-    airdatematch = tools.airDateMatch(streaminfo)
-    if airdatematch:
-      return 'vodTV'
+        season_dir: str = ""
+        if self.seasonnumber:
+            season_dir = f"{tools.sanitize_filename(self.showtitle)} - Season {self.seasonnumber.strip()}"
 
-    channelmatch = tools.tvgChannelMatch(streaminfo)
-    if channelmatch:
-      return 'live'
-    
-    logomatch = tools.tvgLogoMatch(streaminfo)
-    if logomatch:
-      return 'live'
+        return os.path.join(
+            self.output_dir,
+            self.tvshow_output_dir,
+            tools.sanitize_filename(self.showtitle),
+            season_dir,
+            f"{' - '.join(filestring).replace(':', '-').replace('*', '_')}.strm",  # Corrected f-string formatting
+        )
 
-    tvgnamematch = tools.tvgNameMatch(streaminfo)
-    if tvgnamematch:
-      if not tools.imdbCheck(tools.getResult(tvgnamematch)):
-        return 'live'
-    return 'vodMovie'
+    def makeStream(self) -> str:
+        """Creates the stream file for TV episodes."""
+        filename: str = self.getFilename()
+        directory: str = os.path.dirname(filename)
+
+        tools.makeDirectory(directory)  # Create directory
+        os.chmod(directory, self.dir_permissions)  # Ensure correct permissions
+
+        tools.makeStrm(filename, self.url)
+        os.chmod(directory, self.dir_permissions)  # Ensure correct permissions
+        return filename
 
 
-  def parseStream(self, streaminfo, streamURL):
-    streamtype = self.parseStreamType(streaminfo)
-    if streamtype == 'vodTV':
-      self.parseVodTv(streaminfo, streamURL)
-    elif streamtype == 'vodMovie':
-      self.parseVodMovie(streaminfo, streamURL)
-    else:
-      self.parseLiveStream(streaminfo, streamURL)
-  
-  def parseVodTv(self, streaminfo, streamURL):
-    #print(streaminfo)
-    title = tools.infoMatch(streaminfo)
-    if title:
-      title = tools.parseMovieInfo(title.group())
-    resolution = tools.resolutionMatch(streaminfo)
-    if resolution:
-      resolution = tools.parseResolution(resolution)
-      #print(resolution)
-      title = tools.stripResolution(title)
-    episodeinfo = tools.parseEpisode(title)
-    if episodeinfo:
-      if len(episodeinfo) == 3:
-        showtitle = episodeinfo[0]
-        airdate = episodeinfo[2]
-        episodename = episodeinfo[1]
-        episode = TVEpisode(showtitle, streamURL, resolution=resolution, episodename=episodename, airdate=airdate)
-      else:
-        showtitle = episodeinfo[0]
-        episodename = episodeinfo[1]
-        seasonnumber = episodeinfo[2]
-        episodenumber = episodeinfo[3]
-        language = episodeinfo[4]
-        episode = TVEpisode(showtitle, streamURL, seasonnumber=seasonnumber, episodenumber=episodenumber, resolution=resolution, language=language, episodename=episodename)
-    print(episode.__dict__, 'TVSHOW')
-    print(episode.getFilename())
-    episode.makeStream()
-  
-  def parseLiveStream(self, streaminfo, streamURL):
-    #print(streaminfo, "LIVETV")
-    pass
+class rawStreamList(QObject):  # Inherit from QObject for signals
+    progress_total = pyqtSignal(int)
+    progress_update = pyqtSignal(int)
 
-  def parseVodMovie(self, streaminfo, streamURL):
-    #todo: add language parsing for |LA| and strip it
-    title = tools.parseMovieInfo(streaminfo)
-    resolution = tools.resolutionMatch(streaminfo)
-    if resolution:
-      resolution = tools.parseResolution(resolution)
-    year = tools.yearMatch(streaminfo)
-    if year:
-      title = tools.stripYear(title)
-      year = year.group().strip()
-    language = tools.languageMatch(title)
-    if language:
-      title = tools.stripLanguage(title)
-      language = language.group().strip()
-    moviestream = Movie(title, streamURL, year=year, resolution=resolution, language=language)
-    print(moviestream.__dict__, "MOVIE")
-    print(moviestream.getFilename())
-    moviestream.makeStream()
+    def __init__(self, config, log_level: logger.LogLevel) -> None:  # Use logger.LogLevel
+        super().__init__()  # Initialize QObject
+        self.log = logger.Logger(__file__, log_level=log_level)
+        self.streams: Dict[str, str] = {}  # Add type hint for streams
+        self.filename: str = config["paths"]["input_m3u"]
+        self.output_dir: str = config.get("paths", "output_dir", fallback="streams")
+        self.movie_output_dir: str = config.get(
+            "output_paths", "movie_output_dir", fallback="movies"
+        )
+        self.tvshow_output_dir: str = config.get(
+            "output_paths", "tvshow_output_dir", fallback="tvshows"
+        )
+        file_permissions_str: str = config.get("output_paths", "file_permissions", fallback="644")
+        dir_permissions_str: str = config.get("output_paths", "dir_permissions", fallback="755")
+        self.file_permissions: int = int(file_permissions_str, 8)  # Convert to octal
+        self.dir_permissions: int = int(dir_permissions_str, 8)  # Convert to octal
+        self.lines: List[str] = []  # Initialize lines as an empty list
+        self.read_lines()
+        self.parse_line()
+
+    def delete_downloaded_m3u(self) -> None:
+        """Deletes the downloaded M3U file if it was downloaded from a URL."""
+        if self.filename.startswith("http"):
+            downloaded_m3u_path = "m3u/downloaded.m3u"
+            if os.path.exists(downloaded_m3u_path):
+                try:
+                    os.remove(downloaded_m3u_path)
+                    self.log.write_to_log(f"Deleted downloaded M3U file: {downloaded_m3u_path}")
+                except Exception as e:
+                    self.log.write_to_log(f"Error deleting downloaded M3U file: {e}")
+            else:
+                self.log.write_to_log(f"Downloaded M3U file not found at: {downloaded_m3u_path}")
+        else:
+            self.log.write_to_log("Input M3U was not downloaded from URL, skipping deletion.")
 
 
+    def read_lines(self) -> int:
+        """Reads lines from the M3U file."""
+        try:
+            if self.filename.startswith("http://") or self.filename.startswith(
+                "https://"
+            ):
+                response = requests.get(self.filename, timeout=10)  # Add timeout
+                response.raise_for_status()  # Raise an exception for bad status codes
+                self.lines = response.text.splitlines()
+            else:
+                with open(self.filename, "r", encoding="utf8") as f:  # Explicitly open in text mode
+                    self.lines = [line.rstrip("\n") for line in f]
+        except requests.exceptions.RequestException as e:
+            self.log.write_to_log(f"Error fetching URL: {e}")
+            self.lines = []  # Set lines to an empty list to avoid further processing
+        except FileNotFoundError:
+            self.log.write_to_log(f"File not found: {self.filename}")
+            self.lines = []  # Set lines to an empty list to avoid further processing
+        except Exception as e:  # Catch other exceptions like timeout
+            self.log.write_to_log(f"An unexpected error occurred during read_lines: {e}")
+            self.lines = []
 
+        self.progress_total.emit(len(self.lines))  # Emit total lines
+        return len(self.lines)
 
+    def parse_line(self) -> Optional[List[str]]:  # Expecting to return a list of filenames
+        """Parses each line from the M3U file to create stream files."""
+        linenumber: int = 0
+        results: List[str] = []
+        numlines: int = len(self.lines)
+        while linenumber < numlines:  # Use while loop for clarity
+            thisline: str = self.lines[linenumber]
+            nextline: Optional[str] = self.lines[linenumber + 1] if linenumber + 1 < numlines else None  # Check boundary
+            if not nextline:
+                linenumber += 1
+                continue
 
+            if re.search("EXTM3U", thisline, re.IGNORECASE):
+                linenumber += 1
+                continue
 
+            if thisline.startswith("#") and nextline.startswith("#"):
+                if tools.verifyURL(self.lines[linenumber + 2]):
+                    log_message = f"raw stream found: {linenumber}\\n{'\\n'.join([thisline, nextline])}\\n{self.lines[linenumber + 2]}"
+                    self.log.write_to_log(msg=log_message)
+                    result = self.parseStream(
+                        " ".join([thisline, nextline]), self.lines[linenumber + 2]
+                    )
+                    if result:
+                        results.append(result)
+                    linenumber += 3
+                else:
+                    error_message = f"Error finding raw stream in linenumber: {linenumber}\\n{'\\n'.join(self.lines[linenumber:linenumber + 2])}"
+                    self.log.write_to_log(msg=error_message)
+                    linenumber += 1
+            elif tools.verifyURL(nextline):
+                log_message = f"raw stream found: {linenumber}\\n{'\\n'.join([thisline, nextline])}"
+                self.log.write_to_log(msg=log_message)
+                result = self.parseStream(thisline, nextline)
+                if result:
+                    results.append(result)
+                linenumber += 2
+            else:
+                linenumber += 1  # Increment linenumber even if no stream is found
+            self.progress_update.emit(linenumber)  # Emit current line number
+        return results
+
+    def parse_stream_type(self, streaminfo: str) -> str:
+        """Parses the stream type from stream info."""
+        self.log.write_to_log(f"Parsing stream type for: {streaminfo}")
+        if tools.ufcwweMatch(streaminfo):
+            return "live"
+        if tools.sxxExxMatch(streaminfo) or tools.airDateMatch(streaminfo):  # Combine conditions
+            return "vod_tv"
+        return "vod_movie"  # Default to vodMovie
+
+    def parseStream(self, streaminfo: str, streamURL: str) -> Optional[str]:
+        """Parses a stream and delegates to specific parsers based on stream type."""
+        self.log.write_to_log(f"Parsing stream: {streaminfo}, URL: {streamURL}")
+        streamtype: str = self.parse_stream_type(streaminfo)
+        self.log.write_to_log(f"Stream type: {streamtype}")
+        if streamtype == "vod_tv":
+            return self.parseVodTv(streaminfo, streamURL)
+        if streamtype == "vod_movie":
+            return self.parseVodMovie(streaminfo, streamURL)
+        return self.parseLiveStream(streaminfo, streamURL)  # No need for elif, only 3 types
+
+    def parseVodTv(self, streaminfo: str, streamURL: str) -> Optional[str]:  # Could return None
+        """Parses VOD TV stream info and creates a TVEpisode object."""
+        self.log.write_to_log(f"Parsing VOD TV: {streaminfo}, URL: {streamURL}")
+        title_match = tools.infoMatch(streaminfo)  # More descriptive variable name
+        title: Optional[str] = tools.parseMovieInfo(title_match.group()) if title_match else None  # Use ternary and handle None
+        resolution_match = tools.resolutionMatch(streaminfo)  # More descriptive variable name
+        resolution: Optional[str] = tools.parseResolution(resolution_match) if resolution_match else None  # Use ternary and handle None
+        if title and resolution:  # Only strip resolution if both title and resolution are found
+            title = tools.stripResolution(title)
+        episodeinfo: Optional[list[Optional[str]]] = tools.parseEpisode(title) # Add type hint
+
+        if episodeinfo and len(episodeinfo) >= 3:  # Check if episodeinfo is valid and has enough elements
+            showtitle: Optional[str] = episodeinfo[0]
+            episodename: Optional[str] = episodeinfo[1]
+            airdate: Optional[str] = episodeinfo[2] if len(episodeinfo) == 3 else None  # Handle airdate or season/episode
+            seasonnumber: Optional[str] = episodeinfo[2] if len(episodeinfo) > 3 else None  # Handle season number
+            episodenumber: Optional[str] = episodeinfo[3] if len(episodeinfo) > 3 else None  # Handle episode number
+            language: Optional[str] = episodeinfo[4] if len(episodeinfo) > 4 else None  # Handle language
+
+            episode = TVEpisode(
+                showtitle=showtitle,
+                url=streamURL,
+                resolution=resolution,
+                episodename=episodename,
+                airdate=airdate,
+                seasonnumber=seasonnumber,
+                episodenumber=episodenumber,
+                language=language,
+                output_dir=self.output_dir,
+                movie_output_dir=self.movie_output_dir,
+                tvshow_output_dir=self.tvshow_output_dir,
+                file_permissions=self.file_permissions,
+                dir_permissions=self.dir_permissions,
+            )
+            self.log.write_to_log(f"TVEpisode object: {episode.__dict__}")
+            filename: str = episode.getFilename() # Add type hint
+            self.log.write_to_log(f"TVEpisode filename: {filename}")
+            created_file = episode.makeStream()
+            self.streams[created_file] = created_file
+            return created_file
+
+        return None  # Return None if no file created or parsing fails
+
+    def parseLiveStream(
+        self, streaminfo: str, streamURL: str
+    ) -> Optional[str]:
+        """Parses Live stream info (currently does nothing)."""
+        self.log.write_to_log(f"Parsing Live Stream: {streaminfo}, URL: {streamURL}")
+        return None
+
+    def parseVodMovie(self, streaminfo: str, streamURL: str) -> Optional[str]:  # Could return None
+        """Parses VOD Movie stream info and creates a Movie object."""
+        self.log.write_to_log(f"Parsing VOD Movie: {streaminfo}, URL: {streamURL}")
+        title: Optional[str] = tools.parseMovieInfo(streaminfo)
+        resolution_match = tools.resolutionMatch(streaminfo)  # More descriptive variable name
+        resolution: Optional[str] = tools.parseResolution(resolution_match) if resolution_match else None  # Use ternary and handle None
+        year_match = tools.yearMatch(streaminfo)  # More descriptive variable name
+        year: Optional[str] = year_match.group().strip() if year_match else None  # Use ternary and handle None
+        if year and title:  # Only strip year if both year and title are found
+            title = tools.stripYear(title)
+
+        language_match = tools.languageMatch(title)
+        language: Optional[str] = language_match.group().strip() if language_match else None
+        if language and title:
+            title = tools.stripLanguage(title)
+
+        moviestream = Movie(
+            title=title,
+            url=streamURL,
+            year=year,
+            resolution=resolution,
+            language=language,
+            output_dir=self.output_dir,
+            movie_output_dir=self.movie_output_dir,
+            tvshow_output_dir=self.tvshow_output_dir,
+            file_permissions=self.file_permissions,
+            dir_permissions=self.dir_permissions,
+        )
+        self.log.write_to_log(f"Movie object: {moviestream.__dict__}")
+        filename: str = moviestream.getFilename() # Add type hint
+        self.log.write_to_log(f"Movie filename: {filename}")
+        created_file: str = moviestream.makeStream() # Add type hint
+        self.streams[created_file] = created_file
+        return created_file

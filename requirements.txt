@@ -1,0 +1,4 @@
+requests
+wget
+configparser
+PyQt6
